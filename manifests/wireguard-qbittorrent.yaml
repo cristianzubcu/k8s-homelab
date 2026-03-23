@@ -1,0 +1,137 @@
+# WireGuard + qBittorrent share a single Pod so qBittorrent traffic routes
+# through the WireGuard VPN tunnel (equivalent to docker-compose network_mode: service:wireguard).
+#
+# Secrets required (created by setup.sh):
+#   wireguard-config  →  wg0.conf (full WireGuard config file)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wireguard-qbittorrent
+  namespace: homelab
+  labels:
+    app: wireguard-qbittorrent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wireguard-qbittorrent
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wireguard-qbittorrent
+    spec:
+      # Allow WireGuard to configure kernel networking
+      securityContext:
+        sysctls:
+          - name: net.ipv4.conf.all.src_valid_mark
+            value: "1"
+      initContainers:
+        # Place wg0.conf from Secret into the wireguard config directory
+        - name: wg-config-init
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /config/wg_confs
+              cp /secret/wg0.conf /config/wg_confs/wg0.conf
+              chmod 600 /config/wg_confs/wg0.conf
+          volumeMounts:
+            - name: wireguard-config
+              mountPath: /config
+            - name: wireguard-secret
+              mountPath: /secret
+              readOnly: true
+      containers:
+        # ── WireGuard VPN ──
+        - name: wireguard
+          image: lscr.io/linuxserver/wireguard:latest
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+          env:
+            - name: PUID
+              value: "${PUID}"
+            - name: PGID
+              value: "${PGID}"
+            - name: TZ
+              value: "${TZ}"
+          volumeMounts:
+            - name: wireguard-config
+              mountPath: /config
+            - name: kernel-modules
+              mountPath: /lib/modules
+              readOnly: true
+
+        # ── qBittorrent (traffic via WireGuard) ──
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:latest
+          env:
+            - name: PUID
+              value: "${PUID}"
+            - name: PGID
+              value: "${PGID}"
+            - name: TZ
+              value: "${TZ}"
+            - name: WEBUI_PORT
+              value: "8080"
+            - name: TORRENTING_PORT
+              value: "6881"
+          ports:
+            - containerPort: 8080
+              name: webui
+            - containerPort: 6881
+              name: torrenting-tcp
+            - containerPort: 6881
+              protocol: UDP
+              name: torrenting-udp
+          volumeMounts:
+            - name: qbittorrent-config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+
+      volumes:
+        - name: wireguard-config
+          persistentVolumeClaim:
+            claimName: wireguard-config-pvc
+        - name: wireguard-secret
+          secret:
+            secretName: wireguard-config
+        - name: kernel-modules
+          hostPath:
+            path: /lib/modules
+        - name: qbittorrent-config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config-pvc
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent
+  namespace: homelab
+spec:
+  selector:
+    app: wireguard-qbittorrent
+  type: NodePort
+  ports:
+    - name: webui
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080

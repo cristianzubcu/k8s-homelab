@@ -1,0 +1,29 @@
+- Media:
+    - Jellyfin:
+        href: "http://${SERVER_IP}:30096"
+        description: Media Server
+    - Radarr:
+        href: "http://${SERVER_IP}:30878"
+        description: Movie Manager
+    - Sonarr:
+        href: "http://${SERVER_IP}:30989"
+        description: TV Show Manager
+    - Bazarr:
+        href: "http://${SERVER_IP}:30767"
+        description: Subtitle Manager
+
+- Downloads:
+    - qBittorrent:
+        href: "http://${SERVER_IP}:30080"
+        description: Torrent Client (via VPN)
+    - Prowlarr:
+        href: "http://${SERVER_IP}:30969"
+        description: Indexer Aggregator
+
+- Management:
+    - Portainer:
+        href: "https://${SERVER_IP}:30443"
+        description: Kubernetes UI
+    - Grafana:
+        href: "http://${SERVER_IP}:30301"
+        description: Monitoring Dashboards

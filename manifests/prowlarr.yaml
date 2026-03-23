@@ -1,0 +1,60 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: homelab
+  labels:
+    app: prowlarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prowlarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      containers:
+        - name: prowlarr
+          image: lscr.io/linuxserver/prowlarr:latest
+          env:
+            - name: PUID
+              value: "${PUID}"
+            - name: PGID
+              value: "${PGID}"
+            - name: TZ
+              value: "${TZ}"
+          ports:
+            - containerPort: 9696
+          volumeMounts:
+            - name: prowlarr-data
+              mountPath: /config
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9696
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: prowlarr-data
+          persistentVolumeClaim:
+            claimName: prowlarr-data-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr
+  namespace: homelab
+spec:
+  selector:
+    app: prowlarr
+  type: NodePort
+  ports:
+    - port: 9696
+      targetPort: 9696
+      nodePort: 30969

@@ -1,0 +1,12 @@
+# Generated files
+generated/
+
+# Secrets — never commit
+*.secret
+.env
+secrets.yaml
+
+# Editor
+.vscode/
+.idea/
+*.swp

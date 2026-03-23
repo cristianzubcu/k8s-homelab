@@ -1,0 +1,74 @@
+# DaemonSet for container resource metrics
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cadvisor
+  namespace: homelab
+  labels:
+    app: cadvisor
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+    spec:
+      containers:
+        - name: cadvisor
+          image: gcr.io/cadvisor/cadvisor:latest
+          ports:
+            - containerPort: 8080
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: root
+              mountPath: /rootfs
+              readOnly: true
+            - name: var-run
+              mountPath: /var/run
+              readOnly: false
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            # Use the appropriate runtime socket for your setup:
+            # containerd (k3s, k0s, kubeadm default)
+            - name: containerd
+              mountPath: /run/containerd/containerd.sock
+              readOnly: false
+            # Docker (uncomment if using Docker as runtime)
+            # - name: docker
+            #   mountPath: /var/lib/docker
+            #   readOnly: true
+      volumes:
+        - name: root
+          hostPath:
+            path: /
+        - name: var-run
+          hostPath:
+            path: /var/run
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: containerd
+          hostPath:
+            path: /run/containerd/containerd.sock
+        # - name: docker
+        #   hostPath:
+        #     path: /var/lib/docker
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cadvisor
+  namespace: homelab
+spec:
+  selector:
+    app: cadvisor
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
